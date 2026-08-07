@@ -37,38 +37,60 @@ El **servidor** expone:
 La IA usa la [API de Anthropic (Claude)](https://docs.anthropic.com/) desde
 el servidor, para no exponer la clave de API en el navegador.
 
-## Requisitos
+## Puesta en marcha (paso a paso, sin experiencia previa)
 
-- Node.js 20+
+Pensado para correr en tu propia computadora (por ejemplo una Mac), no en un
+equipo corporativo restringido.
 
-## Puesta en marcha
+### 1. Instala Node.js (una sola vez)
 
-### 1. Servidor
+Node.js es el programa que permite ejecutar este proyecto. Ve a
+[nodejs.org](https://nodejs.org/), descarga la versión **LTS** para macOS y
+ábrela como cualquier instalador (`.pkg`): siguiente, siguiente, instalar.
+
+### 2. Descarga este proyecto
+
+En GitHub, en la rama `claude/text-editor-ai-integration-rl90vf`, usa el
+botón verde **Code → Download ZIP** y descomprime el archivo (por ejemplo en
+el Escritorio).
+
+### 3. Abre la Terminal
+
+En el Launchpad o con Spotlight (`Cmd + Espacio`) busca **Terminal** y
+ábrela. Escribe `cd ` (con un espacio al final) y luego arrastra la carpeta
+descomprimida del proyecto hacia la ventana de la Terminal — esto pega la
+ruta automáticamente. Presiona `Enter`.
+
+### 4. Instala y arranca todo con dos comandos
+
+Copia y pega estos comandos uno por uno (Enter después de cada uno):
 
 ```bash
-cd server
-npm install
-cp .env.example .env
-# Edita .env y coloca tu ANTHROPIC_API_KEY para activar las funciones de IA
+npm run setup
 npm run dev
 ```
 
-El servidor arranca en `http://localhost:4000`. Sin `ANTHROPIC_API_KEY`
-configurada, el editor funciona igualmente (edición, importación/exportación
-de documentos), pero las funciones de IA quedan deshabilitadas y el panel
-lateral lo indica.
+El primero instala todo lo necesario y crea los archivos de configuración.
+El segundo arranca la aplicación completa (editor + servidor) con un solo
+comando. Cuando veas `VITE ... ready` en la Terminal, abre tu navegador en:
 
-### 2. Cliente
-
-En otra terminal:
-
-```bash
-cd client
-npm install
-npm run dev
+```
+http://localhost:5173
 ```
 
-Abre `http://localhost:5173`.
+Para detenerlo, vuelve a la Terminal y presiona `Ctrl + C`. Para volver a
+usarlo otro día, solo hace falta `npm run dev` (ya no `npm run setup`).
+
+### 5. (Opcional) Activar el asistente de IA
+
+Sin esto, el editor funciona igual (escribir, dar formato, exportar a
+.docx/.pdf) pero sin sugerencias ni instrucciones de IA. Para activarlas:
+
+1. Consigue una clave de API en [console.anthropic.com](https://console.anthropic.com/).
+2. Dentro de la carpeta del proyecto, abre el archivo `server/.env` con
+   cualquier editor de texto (TextEdit sirve).
+3. Donde dice `ANTHROPIC_API_KEY=`, pega tu clave justo después del `=`.
+4. Guarda el archivo y reinicia `npm run dev`.
 
 ## Funciones de IA en detalle
 
