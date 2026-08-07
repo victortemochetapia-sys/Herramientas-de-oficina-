@@ -69,11 +69,22 @@ convertRouter.post("/export/docx", async (req, res) => {
  * Exporta HTML del editor a PDF usando Chromium headless (Playwright).
  */
 convertRouter.post("/export/pdf", async (req, res) => {
-  const { html, title } = req.body as { html?: string; title?: string };
+  const { html, title, margins } = req.body as {
+    html?: string;
+    title?: string;
+    margins?: { top?: number; right?: number; bottom?: number; left?: number };
+  };
   if (!html) {
     res.status(400).json({ error: "Falta el contenido HTML." });
     return;
   }
+
+  const m = {
+    top: clampCm(margins?.top),
+    right: clampCm(margins?.right),
+    bottom: clampCm(margins?.bottom),
+    left: clampCm(margins?.left),
+  };
 
   let browser;
   try {
@@ -86,7 +97,7 @@ convertRouter.post("/export/pdf", async (req, res) => {
 <meta charset="utf-8" />
 <title>${escapeHtml(title || "Documento")}</title>
 <style>
-  @page { margin: 2.5cm; }
+  @page { margin: ${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm; }
   body { font-family: "Liberation Serif", Georgia, serif; font-size: 12pt; line-height: 1.5; color: #1a1a1a; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border: 1px solid #999; padding: 6px 8px; }
@@ -98,7 +109,7 @@ convertRouter.post("/export/pdf", async (req, res) => {
 </html>`;
 
     await page.setContent(fullHtml, { waitUntil: "networkidle" });
-    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true });
+    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${(title || "documento").replace(/"/g, "")}.pdf"`);
@@ -110,6 +121,11 @@ convertRouter.post("/export/pdf", async (req, res) => {
     await browser?.close();
   }
 });
+
+function clampCm(value: number | undefined): number {
+  if (typeof value !== "number" || Number.isNaN(value)) return 2.5;
+  return Math.min(Math.max(value, 0), 10);
+}
 
 function escapeHtml(value: string): string {
   return value

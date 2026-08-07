@@ -40,7 +40,7 @@ export function AiSidebar({
   };
 
   return (
-    <aside className="ai-sidebar">
+    <div className="side-panel">
       <h2>Asistente de IA</h2>
 
       {!aiEnabled && (
@@ -115,6 +115,6 @@ export function AiSidebar({
 
         {instructError && <div className="ai-error">{instructError}</div>}
       </section>
-    </aside>
+    </div>
   );
 }

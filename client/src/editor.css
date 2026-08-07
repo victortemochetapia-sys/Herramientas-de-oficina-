@@ -100,16 +100,84 @@
   color: #d6c8ff;
 }
 
-/* ---------- Toolbar ---------- */
-.toolbar {
+/* ---------- Ribbon (barra de herramientas con pestañas) ---------- */
+.ribbon {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ribbon-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ribbon-tab {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #6b6577;
+  border-radius: 6px 6px 0 0;
+}
+
+.ribbon-tab:hover {
+  background: var(--accent-bg);
+}
+
+.ribbon-tab.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ribbon-panel {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
-  flex-shrink: 0;
+  min-height: 42px;
+}
+
+.toolbar-select-narrow {
+  width: 60px;
+}
+
+.margins-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.margins-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: #6b6577;
+}
+
+.margins-form input {
+  width: 70px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.margins-form .ai-help {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+}
+
+.ribbon-toggle {
+  padding: 0 10px;
 }
 
 .toolbar-group {
@@ -182,15 +250,96 @@
   padding: 32px 16px;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+}
+
+.page-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ruler {
+  flex-shrink: 0;
 }
 
 .page {
-  width: 100%;
-  max-width: 794px; /* ~ A4 a 96dpi */
+  position: relative;
   min-height: 1123px;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), 0 2px 12px rgba(0, 0, 0, 0.08);
-  padding: 72px 80px;
+  margin-top: 4px;
+}
+
+.page-break-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #c9c4d4;
+  pointer-events: none;
+}
+
+.page-break-guide span {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  font-size: 10px;
+  color: #a39dae;
+  background: #fff;
+  padding: 0 4px;
+}
+
+/* ---------- Ruler ---------- */
+.ruler {
+  position: relative;
+  height: 22px;
+  background: #f0eef4;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  user-select: none;
+}
+
+.ruler-ticks {
+  position: relative;
+  height: 100%;
+}
+
+.ruler-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 1px;
+  background: #cfcad9;
+  font-size: 9px;
+  color: #9b95a8;
+}
+
+.ruler-tick span {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+}
+
+.ruler-text-area {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #fff;
+  border-left: 1px solid var(--accent-border);
+  border-right: 1px solid var(--accent-border);
+}
+
+.ruler-handle {
+  position: absolute;
+  top: 2px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 10px solid var(--accent);
+  cursor: ew-resize;
 }
 
 .tiptap {
@@ -244,14 +393,153 @@
   font-style: italic;
 }
 
+/* ---------- Comentarios y control de cambios (marcas dentro del texto) ---------- */
+.commented-text {
+  background: #fff3c4;
+  border-bottom: 2px solid #e0b400;
+  cursor: pointer;
+}
+
+.track-insert {
+  color: #0f7a34;
+  text-decoration: underline;
+  text-decoration-color: #0f7a34;
+}
+
+.track-delete {
+  color: #b3261e;
+  text-decoration: line-through;
+}
+
 /* ---------- AI sidebar ---------- */
 .ai-sidebar {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
   background: #fff;
   border-left: 1px solid var(--border);
-  padding: 16px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-tabs button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: #6b6577;
+  border-bottom: 2px solid transparent;
+}
+
+.sidebar-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.side-panel {
+  padding: 16px;
+}
+
+.side-panel h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+  color: var(--text-h);
+}
+
+.side-panel h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #7a7585;
+  margin: 0 0 8px;
+}
+
+.comment-card,
+.change-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.comment-card.resolved {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.comment-quote,
+.change-text {
+  font-style: italic;
+  color: #4a4553;
+  margin-bottom: 4px;
+}
+
+.change-card.insert {
+  border-left: 3px solid #0f7a34;
+}
+
+.change-card.delete {
+  border-left: 3px solid #b3261e;
+}
+
+.change-type {
+  font-weight: 600;
+  font-size: 11.5px;
+  margin-bottom: 4px;
+}
+
+.comment-body {
+  color: var(--text-h);
+  margin-bottom: 6px;
+}
+
+.comment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #9b95a8;
+}
+
+.comment-resolve-btn {
+  border: none;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.change-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.change-actions button {
+  border: 1px solid var(--border);
+  background: #faf9fc;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.review-bulk-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .ai-sidebar h2 {

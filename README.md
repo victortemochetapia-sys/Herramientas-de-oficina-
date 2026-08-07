@@ -12,6 +12,15 @@ crear y editar documentos y exportarlos a **.docx** y **.pdf** (además de
   etc. La respuesta se transmite en vivo (streaming) directamente en el
   documento.
 
+Además, para acercarse a la experiencia de Word:
+
+- **Cinta de opciones (ribbon)** con pestañas Inicio / Insertar / Diseño / Revisar.
+- **Fuente y tamaño de letra**, corrector ortográfico nativo del navegador.
+- **Regla con márgenes arrastrables** (y campos numéricos exactos en la pestaña Diseño).
+- **Guías de fin de página**: líneas que muestran dónde caerá cada salto de página al exportar a PDF (el documento sigue siendo un único lienzo editable, no páginas físicas separadas).
+- **Comentarios**: selecciona texto, añade un comentario, resuélvelo cuando corresponda.
+- **Control de cambios ("Modo de revisión")**: lo que se escribe queda subrayado y lo que se borra queda tachado en vez de desaparecer, hasta aceptar o rechazar cada cambio (o todos a la vez). *Función en beta*: cubre los flujos comunes (escribir, seleccionar y borrar); casos poco frecuentes como pegar sobre texto ya marcado o deshacer/rehacer pueden comportarse de forma imperfecta. Al exportar a .docx/.pdf, los cambios pendientes se aplican automáticamente (inserciones se conservan, eliminaciones se quitan) para que el archivo final quede limpio.
+
 ## Arquitectura
 
 Monorepo con dos proyectos independientes:

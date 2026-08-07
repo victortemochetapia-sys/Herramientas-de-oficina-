@@ -113,11 +113,18 @@ export async function exportDocx(html: string, title: string): Promise<void> {
   await downloadBlob(res, `${title || "documento"}.docx`);
 }
 
-export async function exportPdf(html: string, title: string): Promise<void> {
+export interface PdfMargins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export async function exportPdf(html: string, title: string, margins?: PdfMargins): Promise<void> {
   const res = await fetch(`${API_BASE}/api/convert/export/pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ html, title }),
+    body: JSON.stringify({ html, title, margins }),
   });
   await downloadBlob(res, `${title || "documento"}.pdf`);
 }
