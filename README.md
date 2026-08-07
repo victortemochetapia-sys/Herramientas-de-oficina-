@@ -16,6 +16,10 @@ Además, para acercarse a la experiencia de Word:
 
 - **Cinta de opciones (ribbon)** con pestañas Inicio / Insertar / Diseño / Revisar.
 - **Fuente y tamaño de letra**, corrector ortográfico nativo del navegador.
+- **Párrafo**: interlineado (sencillo, 1.15, 1.5, doble) y sangría (aumentar/disminuir).
+- **Formato de texto**: superíndice/subíndice, borrar formato, mayúsculas/minúsculas/Tipo Título, paleta de colores de resaltado.
+- **Buscar y reemplazar** (Ctrl+F): navega coincidencias, reemplaza una o todas.
+- **Salto de página manual**, respetado como corte real tanto en .docx como en .pdf.
 - **Regla con márgenes arrastrables** (y campos numéricos exactos en la pestaña Diseño).
 - **Guías de fin de página**: líneas que muestran dónde caerá cada salto de página al exportar a PDF (el documento sigue siendo un único lienzo editable, no páginas físicas separadas).
 - **Comentarios**: selecciona texto, añade un comentario, resuélvelo cuando corresponda.

@@ -103,6 +103,7 @@ convertRouter.post("/export/pdf", async (req, res) => {
   td, th { border: 1px solid #999; padding: 6px 8px; }
   img { max-width: 100%; }
   h1, h2, h3 { font-family: "Liberation Sans", Arial, sans-serif; }
+  .page-break { break-after: page; height: 0; border: none; margin: 0; }
 </style>
 </head>
 <body>${html}</body>

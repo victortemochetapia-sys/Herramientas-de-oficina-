@@ -245,12 +245,116 @@
 }
 
 .page-scroll {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 32px 16px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
+}
+
+/* ---------- Buscar y reemplazar ---------- */
+.find-panel {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 400px;
+  max-width: calc(100vw - 360px);
+}
+
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.find-input {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.find-row button {
+  height: 28px;
+  border: 1px solid var(--border);
+  background: #faf9fc;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.find-close {
+  border: none !important;
+  background: transparent !important;
+}
+
+.find-count {
+  font-size: 11px;
+  color: #7a7585;
+  white-space: nowrap;
+}
+
+.search-match {
+  background: #ffe58a;
+}
+
+.search-match-active {
+  background: #ffb74d;
+}
+
+/* ---------- Salto de página manual ---------- */
+.page-break {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed var(--accent);
+  margin: 24px 0;
+}
+
+.page-break::after {
+  content: "Salto de página";
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 10px;
+  padding: 0 6px;
+}
+
+/* ---------- Paleta de resaltado ---------- */
+.highlight-palette {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.highlight-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  padding: 0;
+}
+
+.ribbon-find-btn {
+  margin-left: auto;
 }
 
 .page-column {

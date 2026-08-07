@@ -7,11 +7,13 @@ import TableRow from "@tiptap/extension-table-row";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import Image from "@tiptap/extension-image";
-import { TextStyle } from "@tiptap/extension-text-style";
+import { TextStyle, FontSize, LineHeight } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import FontFamily from "@tiptap/extension-font-family";
+import Superscript from "@tiptap/extension-superscript";
+import Subscript from "@tiptap/extension-subscript";
 
 import { Ribbon } from "./components/Ribbon";
 import { MenuBar } from "./components/MenuBar";
@@ -21,9 +23,13 @@ import { CommentsPanel } from "./components/CommentsPanel";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { Ruler } from "./components/Ruler";
 import { PageGuides } from "./components/PageGuides";
+import { FindReplacePanel } from "./components/FindReplacePanel";
 import { AiGhostSuggestion } from "./extensions/AiGhostSuggestion";
-import { FontSize } from "./extensions/FontSize";
 import { CommentMark } from "./extensions/CommentMark";
+import { Indent } from "./extensions/Indent";
+import { TextCase } from "./extensions/TextCase";
+import { PageBreak } from "./extensions/PageBreak";
+import { FindReplace, computeMatches, type FindMatch } from "./extensions/FindReplace";
 import { TrackChanges, TrackDeleteMark, TrackInsertMark, getTrackedChanges, type TrackedChangeSummary } from "./extensions/TrackChanges";
 import { exportDocx, exportPdf, fetchAiStatus, fetchAiSuggestion, importDocx, streamAiInstruction } from "./lib/api";
 import { sanitizeHtmlForExport } from "./lib/sanitizeExport";
@@ -65,6 +71,11 @@ function App() {
   const [commentDraft, setCommentDraft] = useState("");
   const [trackChangesEnabled, setTrackChangesEnabled] = useState(false);
   const [trackedChanges, setTrackedChanges] = useState<TrackedChangeSummary[]>([]);
+  const [findOpen, setFindOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [replaceTerm, setReplaceTerm] = useState("");
+  const [findMatches, setFindMatchesState] = useState<FindMatch[]>([]);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
 
   const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionRequestId = useRef(0);
@@ -73,10 +84,15 @@ function App() {
     extensions: [
       StarterKit.configure({ link: { openOnClick: false } }),
       TextStyle,
+      Highlight.configure({ multicolor: true }),
       Color,
-      Highlight,
       FontFamily,
       FontSize,
+      Superscript,
+      Subscript,
+      TextCase,
+      LineHeight,
+      Indent,
       Image,
       Table.configure({ resizable: true }),
       TableRow,
@@ -89,6 +105,8 @@ function App() {
       TrackInsertMark,
       TrackDeleteMark,
       TrackChanges,
+      FindReplace,
+      PageBreak,
     ],
     content: "<p></p>",
     autofocus: true,
@@ -134,6 +152,83 @@ function App() {
     return () => {
       editor.off("update", update);
     };
+  }, [editor]);
+
+  // Buscar y reemplazar: recalcula las coincidencias cuando cambia el
+  // término de búsqueda o el contenido del documento.
+  const recomputeMatches = useCallback(
+    (term: string, keepIndex?: number) => {
+      if (!editor) return;
+      const matches = computeMatches(editor.state.doc, term);
+      const nextIndex = matches.length === 0 ? -1 : Math.min(Math.max(keepIndex ?? 0, 0), matches.length - 1);
+      setFindMatchesState(matches);
+      setActiveMatchIndex(nextIndex);
+      editor.commands.setFindMatches(matches, nextIndex);
+    },
+    [editor],
+  );
+
+  useEffect(() => {
+    if (!editor || !findOpen) return;
+    recomputeMatches(searchTerm, 0);
+  }, [editor, findOpen, searchTerm, recomputeMatches]);
+
+  useEffect(() => {
+    if (!editor || !findOpen) return;
+    const handler = () => recomputeMatches(searchTerm, activeMatchIndex);
+    editor.on("update", handler);
+    return () => {
+      editor.off("update", handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, findOpen, searchTerm]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setFindOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const goToMatch = useCallback(
+    (index: number) => {
+      if (!editor || findMatches.length === 0) return;
+      const clamped = ((index % findMatches.length) + findMatches.length) % findMatches.length;
+      const match = findMatches[clamped];
+      setActiveMatchIndex(clamped);
+      editor.commands.setFindMatches(findMatches, clamped);
+      editor.chain().setTextSelection({ from: match.from, to: match.to }).scrollIntoView().run();
+    },
+    [editor, findMatches],
+  );
+
+  const handleFindNext = useCallback(() => goToMatch(activeMatchIndex + 1), [goToMatch, activeMatchIndex]);
+  const handleFindPrev = useCallback(() => goToMatch(activeMatchIndex - 1), [goToMatch, activeMatchIndex]);
+
+  const handleReplace = useCallback(() => {
+    if (!editor || activeMatchIndex < 0 || !findMatches[activeMatchIndex]) return;
+    const match = findMatches[activeMatchIndex];
+    editor.chain().focus().insertContentAt({ from: match.from, to: match.to }, replaceTerm).run();
+    recomputeMatches(searchTerm, activeMatchIndex);
+  }, [editor, activeMatchIndex, findMatches, replaceTerm, recomputeMatches, searchTerm]);
+
+  const handleReplaceAll = useCallback(() => {
+    if (!editor || !searchTerm || findMatches.length === 0) return;
+    const tr = editor.state.tr;
+    [...findMatches].sort((a, b) => b.from - a.from).forEach((m) => tr.insertText(replaceTerm, m.from, m.to));
+    editor.view.dispatch(tr);
+    recomputeMatches(searchTerm, 0);
+  }, [editor, searchTerm, findMatches, replaceTerm, recomputeMatches]);
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    setFindMatchesState([]);
+    setActiveMatchIndex(-1);
+    editor?.commands.setFindMatches([], -1);
   }, [editor]);
 
   // Sugerencias de IA en vivo (ghost text) mientras el usuario escribe.
@@ -349,10 +444,26 @@ function App() {
         onOpenComments={openComments}
         onOpenReview={openReview}
         canAddComment={hasSelection}
+        onOpenFind={() => setFindOpen(true)}
       />
 
       <div className="workspace">
         <div className="page-scroll">
+          {findOpen && (
+            <FindReplacePanel
+              searchTerm={searchTerm}
+              onSearchTermChange={setSearchTerm}
+              replaceTerm={replaceTerm}
+              onReplaceTermChange={setReplaceTerm}
+              matchCount={findMatches.length}
+              activeIndex={activeMatchIndex}
+              onNext={handleFindNext}
+              onPrev={handleFindPrev}
+              onReplace={handleReplace}
+              onReplaceAll={handleReplaceAll}
+              onClose={closeFind}
+            />
+          )}
           <div className="page-column">
             <Ruler
               pageWidthPx={PAGE_WIDTH_PX}

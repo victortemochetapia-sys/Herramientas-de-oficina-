@@ -11,6 +11,7 @@ interface RibbonProps {
   onOpenComments: () => void;
   onOpenReview: () => void;
   canAddComment: boolean;
+  onOpenFind: () => void;
 }
 
 type Tab = "inicio" | "insertar" | "diseno" | "revisar";
@@ -27,6 +28,21 @@ const FONT_FAMILIES = [
 ];
 
 const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
+
+const LINE_HEIGHTS = [
+  { label: "Sencillo", value: "1" },
+  { label: "1.15", value: "1.15" },
+  { label: "1.5", value: "1.5" },
+  { label: "Doble", value: "2" },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: "Amarillo", value: "#fff3a3" },
+  { label: "Verde", value: "#b9f6ca" },
+  { label: "Rosa", value: "#f8bbd0" },
+  { label: "Celeste", value: "#b3e5fc" },
+  { label: "Naranja", value: "#ffd8a8" },
+];
 
 function ToolbarButton({
   onClick,
@@ -64,6 +80,7 @@ export function Ribbon({
   onOpenComments,
   onOpenReview,
   canAddComment,
+  onOpenFind,
 }: RibbonProps) {
   const [tab, setTab] = useState<Tab>("inicio");
 
@@ -107,6 +124,9 @@ export function Ribbon({
             {{ inicio: "Inicio", insertar: "Insertar", diseno: "Diseño", revisar: "Revisar" }[t]}
           </button>
         ))}
+        <button className="ribbon-tab ribbon-find-btn" title="Buscar y reemplazar (Ctrl+F)" onClick={onOpenFind}>
+          🔍 Buscar
+        </button>
       </div>
 
       <div className="ribbon-panel">
@@ -189,15 +209,60 @@ export function Ribbon({
               <ToolbarButton title="Tachado" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
                 <s>T</s>
               </ToolbarButton>
-              <ToolbarButton title="Resaltado" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleHighlight().run()}>
-                ✎
-              </ToolbarButton>
+              <div className="highlight-palette">
+                <ToolbarButton title="Quitar resaltado" active={false} onClick={() => editor.chain().focus().unsetHighlight().run()}>
+                  ✎
+                </ToolbarButton>
+                {HIGHLIGHT_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    title={`Resaltar en ${c.label}`}
+                    className="highlight-swatch"
+                    style={{ background: c.value }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => editor.chain().focus().toggleHighlight({ color: c.value }).run()}
+                  />
+                ))}
+              </div>
               <input
                 type="color"
                 title="Color de texto"
                 className="toolbar-color"
                 onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
               />
+            </div>
+
+            <div className="toolbar-divider" />
+
+            <div className="toolbar-group">
+              <ToolbarButton title="Superíndice" active={editor.isActive("superscript")} onClick={() => editor.chain().focus().toggleSuperscript().run()}>
+                x²
+              </ToolbarButton>
+              <ToolbarButton title="Subíndice" active={editor.isActive("subscript")} onClick={() => editor.chain().focus().toggleSubscript().run()}>
+                x₂
+              </ToolbarButton>
+              <ToolbarButton title="Borrar formato" onClick={() => editor.chain().focus().unsetAllMarks().run()}>
+                ⌫✎
+              </ToolbarButton>
+              <select
+                className="toolbar-select toolbar-select-narrow"
+                title="Cambiar mayúsculas/minúsculas"
+                onMouseDown={(e) => e.preventDefault()}
+                onChange={(e) => {
+                  const mode = e.target.value as "upper" | "lower" | "title";
+                  if (mode) editor.chain().focus().transformCase(mode).run();
+                  e.target.value = "";
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Aa
+                </option>
+                <option value="upper">MAYÚSCULAS</option>
+                <option value="lower">minúsculas</option>
+                <option value="title">Tipo Título</option>
+              </select>
             </div>
 
             <div className="toolbar-divider" />
@@ -214,6 +279,33 @@ export function Ribbon({
               </ToolbarButton>
               <ToolbarButton title="Justificar" active={editor.isActive({ textAlign: "justify" })} onClick={() => editor.chain().focus().setTextAlign("justify").run()}>
                 ☰
+              </ToolbarButton>
+            </div>
+
+            <div className="toolbar-divider" />
+
+            <div className="toolbar-group">
+              <select
+                className="toolbar-select"
+                title="Interlineado"
+                onMouseDown={(e) => e.preventDefault()}
+                onChange={(e) => editor.chain().focus().setLineHeight(e.target.value).run()}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Interlineado
+                </option>
+                {LINE_HEIGHTS.map((lh) => (
+                  <option key={lh.value} value={lh.value}>
+                    {lh.label}
+                  </option>
+                ))}
+              </select>
+              <ToolbarButton title="Disminuir sangría" onClick={() => editor.chain().focus().decreaseIndent().run()}>
+                ⇤
+              </ToolbarButton>
+              <ToolbarButton title="Aumentar sangría" onClick={() => editor.chain().focus().increaseIndent().run()}>
+                ⇥
               </ToolbarButton>
             </div>
 
@@ -257,6 +349,9 @@ export function Ribbon({
             </ToolbarButton>
             <ToolbarButton title="Insertar tabla" onClick={insertTable}>
               ⊞ Tabla
+            </ToolbarButton>
+            <ToolbarButton title="Insertar salto de página" onClick={() => editor.chain().focus().insertPageBreak().run()}>
+              ⤓ Salto de página
             </ToolbarButton>
           </div>
         )}
