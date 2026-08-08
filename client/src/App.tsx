@@ -32,6 +32,8 @@ import { Indent } from "./extensions/Indent";
 import { TextCase } from "./extensions/TextCase";
 import { PageBreak } from "./extensions/PageBreak";
 import { TocBlock } from "./extensions/TocBlock";
+import { Footnote } from "./extensions/Footnote";
+import { FootnotePopup } from "./components/FootnotePopup";
 import { FindReplace, computeMatches, type FindMatch } from "./extensions/FindReplace";
 import { TrackChanges, TrackDeleteMark, TrackInsertMark, getTrackedChanges, type TrackedChangeSummary } from "./extensions/TrackChanges";
 import { getOutline, insertOrUpdateToc } from "./lib/outline";
@@ -97,6 +99,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [restoredBanner, setRestoredBanner] = useState(false);
+  const [footnotePopup, setFootnotePopup] = useState<{ id: string; text: string; x: number; y: number } | null>(null);
 
   const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionRequestId = useRef(0);
@@ -135,6 +138,7 @@ function App() {
       FindReplace,
       PageBreak,
       TocBlock,
+      Footnote,
     ],
     content: "<p></p>",
     autofocus: true,
@@ -208,6 +212,52 @@ function App() {
     const ok = insertOrUpdateToc(editor);
     if (!ok) alert("Agrega títulos (Título 1/2/3) a tu documento para generar la tabla de contenido.");
   }, [editor]);
+
+  // Notas al pie: clic en un marcador abre el popup de edición.
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const handler = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("[data-footnote-id]");
+      if (!target) return;
+      const id = target.getAttribute("data-footnote-id");
+      if (!id) return;
+      let text = "";
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === "footnote" && node.attrs.id === id) text = node.attrs.text || "";
+      });
+      const rect = target.getBoundingClientRect();
+      setFootnotePopup({ id, text, x: rect.left, y: rect.bottom + 6 });
+    };
+    dom.addEventListener("click", handler);
+    return () => dom.removeEventListener("click", handler);
+  }, [editor]);
+
+  const handleInsertFootnote = useCallback(() => {
+    if (!editor) return;
+    editor.chain().focus().insertFootnote().run();
+    const pos = editor.state.selection.from;
+    const before = editor.state.doc.resolve(pos).nodeBefore;
+    if (before && before.type.name === "footnote") {
+      const coords = editor.view.coordsAtPos(pos - before.nodeSize);
+      setFootnotePopup({ id: before.attrs.id, text: before.attrs.text || "", x: coords.left, y: coords.bottom + 6 });
+    }
+  }, [editor]);
+
+  const handleSaveFootnote = useCallback(
+    (text: string) => {
+      if (!footnotePopup || !editor) return;
+      editor.chain().focus().setFootnoteText(footnotePopup.id, text).run();
+      setFootnotePopup(null);
+    },
+    [editor, footnotePopup],
+  );
+
+  const handleDeleteFootnote = useCallback(() => {
+    if (!footnotePopup || !editor) return;
+    editor.chain().focus().removeFootnote(footnotePopup.id).run();
+    setFootnotePopup(null);
+  }, [editor, footnotePopup]);
 
   // Buscar y reemplazar: recalcula las coincidencias cuando cambia el
   // término de búsqueda o el contenido del documento.
@@ -438,7 +488,7 @@ function App() {
     if (!editor) return;
     setBusy(true);
     try {
-      await exportDocx(sanitizeHtmlForExport(editor.getHTML()), title, exportOptions());
+      await exportDocx(sanitizeHtmlForExport(editor.getHTML(), "docx"), title, exportOptions());
     } catch (err) {
       alert(err instanceof Error ? err.message : "No se pudo guardar el .docx.");
     } finally {
@@ -450,7 +500,7 @@ function App() {
     if (!editor) return;
     setBusy(true);
     try {
-      await exportPdf(sanitizeHtmlForExport(editor.getHTML()), title, exportOptions());
+      await exportPdf(sanitizeHtmlForExport(editor.getHTML(), "pdf"), title, exportOptions());
     } catch (err) {
       alert(err instanceof Error ? err.message : "No se pudo guardar el .pdf.");
     } finally {
@@ -591,6 +641,7 @@ function App() {
         onOpenComments={openComments}
         onOpenReview={openReview}
         onOpenOutline={openOutline}
+        onInsertFootnote={handleInsertFootnote}
         canAddComment={hasSelection}
         onOpenFind={() => setFindOpen(true)}
         paperSize={paperSize}
@@ -717,6 +768,17 @@ function App() {
           paragraphs={paragraphCount}
           estimatedPages={estimatedPages}
           onClose={() => setStatsOpen(false)}
+        />
+      )}
+
+      {footnotePopup && (
+        <FootnotePopup
+          initialText={footnotePopup.text}
+          x={footnotePopup.x}
+          y={footnotePopup.y}
+          onSave={handleSaveFootnote}
+          onDelete={handleDeleteFootnote}
+          onClose={() => setFootnotePopup(null)}
         />
       )}
     </div>

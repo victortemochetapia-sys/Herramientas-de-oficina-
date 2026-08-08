@@ -1,11 +1,24 @@
 import { Router } from "express";
 import multer from "multer";
 import mammoth from "mammoth";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 // html-to-docx no publica tipos; se importa como módulo CJS por defecto.
 // @ts-expect-error - sin tipados
 import HTMLtoDOCX from "html-to-docx";
 import { chromium } from "playwright";
+
+// Polyfill de paged.js: re-fluye el HTML en páginas reales dentro del propio
+// navegador (Chromium/Playwright), respetando el estándar CSS de "paginated
+// media" (@page, notas al pie con float:footnote, encabezados/pies con
+// contadores de página). Se inyecta como <script> inline para no depender
+// de un servidor de archivos estáticos. Se resuelve por ruta relativa (en
+// vez de require.resolve) porque el "exports" map de pagedjs no expone su
+// carpeta dist/ como subpath importable.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PAGEDJS_POLYFILL_PATH = path.join(__dirname, "..", "..", "node_modules", "pagedjs", "dist", "paged.polyfill.min.js");
+const PAGEDJS_POLYFILL = readFileSync(PAGEDJS_POLYFILL_PATH, "utf-8");
 
 export const convertRouter = Router();
 
@@ -28,7 +41,6 @@ const PAPER_SIZES_CM: Record<PaperSizeId, { width: number; height: number }> = {
   legal: { width: 21.59, height: 35.56 },
 };
 
-const PLAYWRIGHT_FORMAT: Record<PaperSizeId, string> = { a4: "A4", carta: "Letter", legal: "Legal" };
 
 interface ExportBody {
   html?: string;
@@ -111,7 +123,11 @@ convertRouter.post("/export/docx", async (req, res) => {
 });
 
 /**
- * Exporta HTML del editor a PDF usando Chromium headless (Playwright).
+ * Exporta HTML del editor a PDF con paginación real: el contenido se
+ * re-fluye en páginas de verdad dentro de Chromium usando paged.js (CSS
+ * Paginated Media), por lo que los saltos de página, encabezados/pies con
+ * numeración automática y notas al pie caen exactamente donde deben, en
+ * vez de aproximarse.
  */
 convertRouter.post("/export/pdf", async (req, res) => {
   const { html, title, margins, paperSize, orientation, headerText, footerText, showPageNumber } = req.body as ExportBody;
@@ -127,8 +143,22 @@ convertRouter.post("/export/pdf", async (req, res) => {
     left: clampCm(margins?.left),
   };
 
-  const format = PLAYWRIGHT_FORMAT[paperSize ?? "a4"] ?? "A4";
-  const landscape = orientation === "landscape";
+  const paper = PAPER_SIZES_CM[paperSize ?? "a4"] ?? PAPER_SIZES_CM.a4;
+  const isLandscape = orientation === "landscape";
+  const pageWidthCm = isLandscape ? paper.height : paper.width;
+  const pageHeightCm = isLandscape ? paper.width : paper.height;
+
+  const marginBoxRules: string[] = [];
+  if (headerText?.trim()) {
+    marginBoxRules.push(`@top-center { content: "${escapeCss(headerText)}"; font-size: 9px; color: #555; font-family: Arial, sans-serif; }`);
+  }
+  const footerParts: string[] = [];
+  if (footerText?.trim()) footerParts.push(`"${escapeCss(footerText)}"`);
+  if (footerText?.trim() && showPageNumber) footerParts.push(`" — "`);
+  if (showPageNumber) footerParts.push(`counter(page) " / " counter(pages)`);
+  if (footerParts.length > 0) {
+    marginBoxRules.push(`@bottom-center { content: ${footerParts.join(" ")}; font-size: 9px; color: #555; font-family: Arial, sans-serif; }`);
+  }
 
   let browser;
   try {
@@ -141,37 +171,35 @@ convertRouter.post("/export/pdf", async (req, res) => {
 <meta charset="utf-8" />
 <title>${escapeHtml(title || "Documento")}</title>
 <style>
+  @page {
+    size: ${pageWidthCm}cm ${pageHeightCm}cm;
+    margin: ${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm;
+    ${marginBoxRules.join("\n    ")}
+  }
   body { font-family: "Liberation Serif", Georgia, serif; font-size: 12pt; line-height: 1.5; color: #1a1a1a; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border: 1px solid #999; padding: 6px 8px; }
   img { max-width: 100%; }
   h1, h2, h3 { font-family: "Liberation Sans", Arial, sans-serif; }
   .page-break { break-after: page; height: 0; border: none; margin: 0; }
+  .footnote { float: footnote; font-size: 9pt; color: #333; }
 </style>
+<script>window.PagedConfig = { auto: true, after: () => { window.__pagedDone = true; } };</script>
+<script>${PAGEDJS_POLYFILL}</script>
 </head>
 <body>${html}</body>
 </html>`;
 
     await page.setContent(fullHtml, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => (globalThis as unknown as { __pagedDone?: boolean }).__pagedDone === true, { timeout: 60000 });
 
-    const pdfOptions: Parameters<typeof page.pdf>[0] = {
-      format,
-      landscape,
+    const pdfBuffer = await page.pdf({
+      width: `${pageWidthCm}cm`,
+      height: `${pageHeightCm}cm`,
       printBackground: true,
-      margin: { top: `${m.top}cm`, right: `${m.right}cm`, bottom: `${m.bottom}cm`, left: `${m.left}cm` },
-    };
-
-    if (headerText?.trim() || footerText?.trim() || showPageNumber) {
-      pdfOptions.displayHeaderFooter = true;
-      pdfOptions.headerTemplate = headerText?.trim()
-        ? `<div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 1cm;">${escapeHtml(headerText)}</div>`
-        : `<span></span>`;
-      const pageNumHtml = showPageNumber ? `<span class="pageNumber"></span> / <span class="totalPages"></span>` : "";
-      const footerParts = [footerText?.trim() ? escapeHtml(footerText) : "", pageNumHtml].filter(Boolean);
-      pdfOptions.footerTemplate = `<div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 1cm;">${footerParts.join(" — ")}</div>`;
-    }
-
-    const pdfBuffer = await page.pdf(pdfOptions);
+      preferCSSPageSize: false,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${(title || "documento").replace(/"/g, "")}.pdf"`);
@@ -199,4 +227,9 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Escapa un texto para usarlo dentro de un string literal de CSS (content: "..."). */
+function escapeCss(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ");
 }

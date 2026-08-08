@@ -11,6 +11,7 @@ interface RibbonProps {
   onOpenComments: () => void;
   onOpenReview: () => void;
   onOpenOutline: () => void;
+  onInsertFootnote: () => void;
   canAddComment: boolean;
   onOpenFind: () => void;
   paperSize: PaperSizeId;
@@ -97,6 +98,7 @@ export function Ribbon({
   onOpenComments,
   onOpenReview,
   onOpenOutline,
+  onInsertFootnote,
   canAddComment,
   onOpenFind,
   paperSize,
@@ -420,6 +422,9 @@ export function Ribbon({
             </ToolbarButton>
             <ToolbarButton title="Insertar línea horizontal" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
               ⎯ Línea
+            </ToolbarButton>
+            <ToolbarButton title="Insertar nota al pie" onClick={onInsertFootnote}>
+              †¹ Nota al pie
             </ToolbarButton>
             <ToolbarButton title="Insertar fecha y hora" onClick={insertDateTime}>
               🕐 Fecha y hora

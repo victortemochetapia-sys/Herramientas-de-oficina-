@@ -1094,3 +1094,51 @@
   font-weight: 600;
   color: var(--text-h);
 }
+
+/* ---------- Notas al pie ---------- */
+.footnote-ref {
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 1px;
+}
+
+.footnote-ref:hover {
+  text-decoration: underline;
+}
+
+.footnote-popup {
+  position: fixed;
+  z-index: 60;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  width: 280px;
+}
+
+.footnote-popup textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.footnote-popup-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.footnote-delete-btn {
+  border: none;
+  background: transparent;
+  color: #b3261e;
+  font-size: 11px;
+  cursor: pointer;
+}

@@ -33,7 +33,9 @@ Además, para acercarse a la experiencia de Word:
 - **Insertar**: símbolos comunes, fecha y hora, línea horizontal.
 - **Estadísticas del documento** (palabras, caracteres, párrafos, páginas estimadas, tiempo de lectura) y **modo oscuro** de la interfaz (la hoja se mantiene blanca, como el papel).
 
-**Fuera de alcance** (proyectos grandes por sí solos, no incluidos): combinación de correspondencia, ecuaciones, notas al pie reales, protección con contraseña, edición colaborativa en tiempo real.
+- **Notas al pie con paginación real**: al exportar a PDF, el documento se re-fluye con [paged.js](https://pagedjs.org) (motor de "paginated media" en CSS estándar) dentro del propio Chromium del servidor, por lo que cada nota cae en el pie de la página exacta donde está su referencia (no al final del documento), con numeración automática. En el .docx (que no soporta notas al pie nativas por esta vía) se convierten en referencia numerada + una sección "Notas" al final. La edición en pantalla sigue siendo un lienzo continuo (con guías visuales de fin de página); la paginación real ocurre al exportar/imprimir.
+
+**Fuera de alcance** (proyectos grandes por sí solos, no incluidos): combinación de correspondencia, ecuaciones, protección con contraseña, edición colaborativa en tiempo real.
 
 ## Arquitectura
 
