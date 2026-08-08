@@ -104,15 +104,6 @@ async function downloadBlob(res: Response, fallbackName: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function exportDocx(html: string, title: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/convert/export/docx`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ html, title }),
-  });
-  await downloadBlob(res, `${title || "documento"}.docx`);
-}
-
 export interface PdfMargins {
   top: number;
   right: number;
@@ -120,11 +111,29 @@ export interface PdfMargins {
   left: number;
 }
 
-export async function exportPdf(html: string, title: string, margins?: PdfMargins): Promise<void> {
+export interface ExportOptions {
+  margins?: PdfMargins;
+  paperSize?: "a4" | "carta" | "legal";
+  orientation?: "portrait" | "landscape";
+  headerText?: string;
+  footerText?: string;
+  showPageNumber?: boolean;
+}
+
+export async function exportDocx(html: string, title: string, options?: ExportOptions): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/convert/export/docx`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html, title, ...options }),
+  });
+  await downloadBlob(res, `${title || "documento"}.docx`);
+}
+
+export async function exportPdf(html: string, title: string, options?: ExportOptions): Promise<void> {
   const res = await fetch(`${API_BASE}/api/convert/export/pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ html, title, margins }),
+    body: JSON.stringify({ html, title, ...options }),
   });
   await downloadBlob(res, `${title || "documento"}.pdf`);
 }

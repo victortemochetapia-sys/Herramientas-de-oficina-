@@ -1,38 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const PAGE_WIDTH_CM = 21; // ancho A4
 const MIN_MARGIN_CM = 0.5;
-const MAX_TEXT_AREA_CM = PAGE_WIDTH_CM - MIN_MARGIN_CM * 2;
 
 interface RulerProps {
   pageWidthPx: number;
+  pageWidthCm: number;
   marginLeftCm: number;
   marginRightCm: number;
   onChange: (marginLeftCm: number, marginRightCm: number) => void;
 }
 
-export function Ruler({ pageWidthPx, marginLeftCm, marginRightCm, onChange }: RulerProps) {
+export function Ruler({ pageWidthPx, pageWidthCm, marginLeftCm, marginRightCm, onChange }: RulerProps) {
   const rulerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"left" | "right" | null>(null);
-  const pxPerCm = pageWidthPx / PAGE_WIDTH_CM;
+  const pxPerCm = pageWidthPx / pageWidthCm;
+  const maxTextAreaCm = pageWidthCm - MIN_MARGIN_CM * 2;
 
-  const clamp = (cm: number) => Math.min(Math.max(cm, MIN_MARGIN_CM), MAX_TEXT_AREA_CM);
+  const clamp = (cm: number) => Math.min(Math.max(cm, MIN_MARGIN_CM), maxTextAreaCm);
 
   const handleMove = useCallback(
     (clientX: number) => {
       const rect = rulerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const cm = (clientX - rect.left) / pxPerCm;
+      // Usa el ancho real renderizado (afectado por el zoom de la página)
+      // en vez de pxPerCm de diseño, para que arrastrar funcione bien con
+      // cualquier nivel de zoom.
+      const renderedPxPerCm = rect.width / pageWidthCm;
+      const cm = (clientX - rect.left) / renderedPxPerCm;
 
       if (dragging === "left") {
         const newLeft = clamp(cm);
-        if (newLeft + marginRightCm <= PAGE_WIDTH_CM - MIN_MARGIN_CM) onChange(newLeft, marginRightCm);
+        if (newLeft + marginRightCm <= pageWidthCm - MIN_MARGIN_CM) onChange(newLeft, marginRightCm);
       } else if (dragging === "right") {
-        const newRight = clamp(PAGE_WIDTH_CM - cm);
-        if (newRight + marginLeftCm <= PAGE_WIDTH_CM - MIN_MARGIN_CM) onChange(marginLeftCm, newRight);
+        const newRight = clamp(pageWidthCm - cm);
+        if (newRight + marginLeftCm <= pageWidthCm - MIN_MARGIN_CM) onChange(marginLeftCm, newRight);
       }
     },
-    [dragging, marginLeftCm, marginRightCm, onChange, pxPerCm],
+    [dragging, marginLeftCm, marginRightCm, onChange, pxPerCm, pageWidthCm],
   );
 
   useEffect(() => {
@@ -48,10 +52,10 @@ export function Ruler({ pageWidthPx, marginLeftCm, marginRightCm, onChange }: Ru
   }, [dragging, handleMove]);
 
   const ticks = [];
-  for (let cm = 0; cm <= PAGE_WIDTH_CM; cm++) {
+  for (let cm = 0; cm <= Math.floor(pageWidthCm); cm++) {
     ticks.push(
       <div key={cm} className="ruler-tick" style={{ left: cm * pxPerCm }}>
-        {cm > 0 && cm < PAGE_WIDTH_CM && <span>{cm}</span>}
+        {cm > 0 && cm < pageWidthCm && <span>{cm}</span>}
       </div>,
     );
   }

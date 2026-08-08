@@ -20,6 +20,27 @@ const CHROMIUM_PATH = process.env.CHROMIUM_PATH && existsSync(process.env.CHROMI
     ? "/opt/pw-browsers/chromium"
     : undefined;
 
+type PaperSizeId = "a4" | "carta" | "legal";
+
+const PAPER_SIZES_CM: Record<PaperSizeId, { width: number; height: number }> = {
+  a4: { width: 21, height: 29.7 },
+  carta: { width: 21.59, height: 27.94 },
+  legal: { width: 21.59, height: 35.56 },
+};
+
+const PLAYWRIGHT_FORMAT: Record<PaperSizeId, string> = { a4: "A4", carta: "Letter", legal: "Legal" };
+
+interface ExportBody {
+  html?: string;
+  title?: string;
+  margins?: { top?: number; right?: number; bottom?: number; left?: number };
+  paperSize?: PaperSizeId;
+  orientation?: "portrait" | "landscape";
+  headerText?: string;
+  footerText?: string;
+  showPageNumber?: boolean;
+}
+
 /**
  * Importa un .docx y lo convierte a HTML editable por el editor.
  */
@@ -42,19 +63,43 @@ convertRouter.post("/import/docx", upload.single("file"), async (req, res) => {
  * Exporta HTML del editor a un archivo .docx descargable.
  */
 convertRouter.post("/export/docx", async (req, res) => {
-  const { html, title } = req.body as { html?: string; title?: string };
+  const { html, title, margins, paperSize, orientation, headerText, footerText, showPageNumber } = req.body as ExportBody;
   if (!html) {
     res.status(400).json({ error: "Falta el contenido HTML." });
     return;
   }
 
+  const m = {
+    top: clampCm(margins?.top),
+    right: clampCm(margins?.right),
+    bottom: clampCm(margins?.bottom),
+    left: clampCm(margins?.left),
+  };
+
+  const paper = PAPER_SIZES_CM[paperSize ?? "a4"] ?? PAPER_SIZES_CM.a4;
+  const isLandscape = orientation === "landscape";
+  const pageWidthCm = isLandscape ? paper.height : paper.width;
+  const pageHeightCm = isLandscape ? paper.width : paper.height;
+
+  const hasHeader = Boolean(headerText?.trim());
+  const hasFooter = Boolean(footerText?.trim() || showPageNumber);
+
   try {
-    const buffer = await HTMLtoDOCX(html, null, {
+    const buffer = await HTMLtoDOCX(html, hasHeader ? `<p style="text-align:center;font-size:9pt;color:#555;">${escapeHtml(headerText || "")}</p>` : null, {
+      orientation: isLandscape ? "landscape" : "portrait",
+      pageSize: { width: cmToTwip(pageWidthCm), height: cmToTwip(pageHeightCm) },
+      margins: {
+        top: cmToTwip(m.top),
+        right: cmToTwip(m.right),
+        bottom: cmToTwip(m.bottom),
+        left: cmToTwip(m.left),
+      },
       table: { row: { cantSplit: true } },
-      footer: false,
-      pageNumber: false,
+      header: hasHeader,
+      footer: hasFooter,
+      pageNumber: Boolean(showPageNumber),
       title: title || "Documento",
-    });
+    }, hasFooter ? `<p style="text-align:center;font-size:9pt;color:#555;">${escapeHtml(footerText || "")}</p>` : undefined);
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     res.setHeader("Content-Disposition", `attachment; filename="${(title || "documento").replace(/"/g, "")}.docx"`);
@@ -69,11 +114,7 @@ convertRouter.post("/export/docx", async (req, res) => {
  * Exporta HTML del editor a PDF usando Chromium headless (Playwright).
  */
 convertRouter.post("/export/pdf", async (req, res) => {
-  const { html, title, margins } = req.body as {
-    html?: string;
-    title?: string;
-    margins?: { top?: number; right?: number; bottom?: number; left?: number };
-  };
+  const { html, title, margins, paperSize, orientation, headerText, footerText, showPageNumber } = req.body as ExportBody;
   if (!html) {
     res.status(400).json({ error: "Falta el contenido HTML." });
     return;
@@ -86,6 +127,9 @@ convertRouter.post("/export/pdf", async (req, res) => {
     left: clampCm(margins?.left),
   };
 
+  const format = PLAYWRIGHT_FORMAT[paperSize ?? "a4"] ?? "A4";
+  const landscape = orientation === "landscape";
+
   let browser;
   try {
     browser = await chromium.launch({ executablePath: CHROMIUM_PATH ?? undefined, headless: true });
@@ -97,7 +141,6 @@ convertRouter.post("/export/pdf", async (req, res) => {
 <meta charset="utf-8" />
 <title>${escapeHtml(title || "Documento")}</title>
 <style>
-  @page { margin: ${m.top}cm ${m.right}cm ${m.bottom}cm ${m.left}cm; }
   body { font-family: "Liberation Serif", Georgia, serif; font-size: 12pt; line-height: 1.5; color: #1a1a1a; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border: 1px solid #999; padding: 6px 8px; }
@@ -110,7 +153,25 @@ convertRouter.post("/export/pdf", async (req, res) => {
 </html>`;
 
     await page.setContent(fullHtml, { waitUntil: "networkidle" });
-    const pdfBuffer = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+
+    const pdfOptions: Parameters<typeof page.pdf>[0] = {
+      format,
+      landscape,
+      printBackground: true,
+      margin: { top: `${m.top}cm`, right: `${m.right}cm`, bottom: `${m.bottom}cm`, left: `${m.left}cm` },
+    };
+
+    if (headerText?.trim() || footerText?.trim() || showPageNumber) {
+      pdfOptions.displayHeaderFooter = true;
+      pdfOptions.headerTemplate = headerText?.trim()
+        ? `<div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 1cm;">${escapeHtml(headerText)}</div>`
+        : `<span></span>`;
+      const pageNumHtml = showPageNumber ? `<span class="pageNumber"></span> / <span class="totalPages"></span>` : "";
+      const footerParts = [footerText?.trim() ? escapeHtml(footerText) : "", pageNumHtml].filter(Boolean);
+      pdfOptions.footerTemplate = `<div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 1cm;">${footerParts.join(" — ")}</div>`;
+    }
+
+    const pdfBuffer = await page.pdf(pdfOptions);
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${(title || "documento").replace(/"/g, "")}.pdf"`);
@@ -126,6 +187,10 @@ convertRouter.post("/export/pdf", async (req, res) => {
 function clampCm(value: number | undefined): number {
   if (typeof value !== "number" || Number.isNaN(value)) return 2.5;
   return Math.min(Math.max(value, 0), 10);
+}
+
+function cmToTwip(cm: number): number {
+  return Math.round((cm / 2.54) * 1440);
 }
 
 function escapeHtml(value: string): string {

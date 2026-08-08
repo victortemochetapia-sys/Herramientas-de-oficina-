@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Editor } from "@tiptap/react";
-import type { Margins } from "../App";
+import type { Margins, Orientation, PaperSizeId } from "../App";
 
 interface RibbonProps {
   editor: Editor | null;
@@ -10,8 +10,21 @@ interface RibbonProps {
   onToggleTrackChanges: (enabled: boolean) => void;
   onOpenComments: () => void;
   onOpenReview: () => void;
+  onOpenOutline: () => void;
   canAddComment: boolean;
   onOpenFind: () => void;
+  paperSize: PaperSizeId;
+  onPaperSizeChange: (size: PaperSizeId) => void;
+  orientation: Orientation;
+  onOrientationChange: (o: Orientation) => void;
+  zoom: number;
+  onZoomChange: (zoom: number) => void;
+  headerText: string;
+  onHeaderTextChange: (value: string) => void;
+  footerText: string;
+  onFooterTextChange: (value: string) => void;
+  showPageNumber: boolean;
+  onShowPageNumberChange: (value: boolean) => void;
 }
 
 type Tab = "inicio" | "insertar" | "diseno" | "revisar";
@@ -43,6 +56,10 @@ const HIGHLIGHT_COLORS = [
   { label: "Celeste", value: "#b3e5fc" },
   { label: "Naranja", value: "#ffd8a8" },
 ];
+
+const SYMBOLS = ["©", "®", "™", "°", "±", "§", "¶", "•", "…", "–", "—", "€", "£", "¥", "×", "÷", "≈", "≠", "≤", "≥", "α", "β", "γ", "Ω", "π", "√", "∞", "★", "☺", "➔"];
+
+const ZOOM_LEVELS = [50, 75, 90, 100, 125, 150, 200];
 
 function ToolbarButton({
   onClick,
@@ -79,10 +96,24 @@ export function Ribbon({
   onToggleTrackChanges,
   onOpenComments,
   onOpenReview,
+  onOpenOutline,
   canAddComment,
   onOpenFind,
+  paperSize,
+  onPaperSizeChange,
+  orientation,
+  onOrientationChange,
+  zoom,
+  onZoomChange,
+  headerText,
+  onHeaderTextChange,
+  footerText,
+  onFooterTextChange,
+  showPageNumber,
+  onShowPageNumberChange,
 }: RibbonProps) {
   const [tab, setTab] = useState<Tab>("inicio");
+  const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
 
   if (!editor) return null;
 
@@ -116,6 +147,20 @@ export function Ribbon({
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
 
+  const insertDateTime = () => {
+    const now = new Date();
+    editor.chain().focus().insertContent(now.toLocaleString("es-ES", { dateStyle: "long", timeStyle: "short" })).run();
+  };
+
+  const applyQuickStyle = (style: "h1" | "h2" | "h3" | "body" | "quote") => {
+    const chain = editor.chain().focus();
+    if (style === "h1") chain.setHeading({ level: 1 }).run();
+    else if (style === "h2") chain.setHeading({ level: 2 }).run();
+    else if (style === "h3") chain.setHeading({ level: 3 }).run();
+    else if (style === "quote") chain.setParagraph().toggleBlockquote().run();
+    else chain.setParagraph().unsetAllMarks().run();
+  };
+
   return (
     <div className="ribbon">
       <div className="ribbon-tabs">
@@ -132,6 +177,26 @@ export function Ribbon({
       <div className="ribbon-panel">
         {tab === "inicio" && (
           <>
+            <div className="toolbar-group quick-styles">
+              <button type="button" className="quick-style-btn" onClick={() => applyQuickStyle("h1")}>
+                Título 1
+              </button>
+              <button type="button" className="quick-style-btn quick-style-h2" onClick={() => applyQuickStyle("h2")}>
+                Título 2
+              </button>
+              <button type="button" className="quick-style-btn quick-style-h3" onClick={() => applyQuickStyle("h3")}>
+                Título 3
+              </button>
+              <button type="button" className="quick-style-btn quick-style-body" onClick={() => applyQuickStyle("body")}>
+                Cuerpo
+              </button>
+              <button type="button" className="quick-style-btn quick-style-quote" onClick={() => applyQuickStyle("quote")}>
+                Cita
+              </button>
+            </div>
+
+            <div className="toolbar-divider" />
+
             <div className="toolbar-group">
               <select
                 className="toolbar-select"
@@ -353,56 +418,117 @@ export function Ribbon({
             <ToolbarButton title="Insertar salto de página" onClick={() => editor.chain().focus().insertPageBreak().run()}>
               ⤓ Salto de página
             </ToolbarButton>
+            <ToolbarButton title="Insertar línea horizontal" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+              ⎯ Línea
+            </ToolbarButton>
+            <ToolbarButton title="Insertar fecha y hora" onClick={insertDateTime}>
+              🕐 Fecha y hora
+            </ToolbarButton>
+            <div className="symbol-picker-wrap">
+              <ToolbarButton title="Insertar símbolo" onClick={() => setSymbolPickerOpen((v) => !v)}>
+                Ω Símbolo
+              </ToolbarButton>
+              {symbolPickerOpen && (
+                <>
+                  <div className="menu-backdrop" onClick={() => setSymbolPickerOpen(false)} />
+                  <div className="symbol-grid">
+                    {SYMBOLS.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className="symbol-btn"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          editor.chain().focus().insertContent(s).run();
+                          setSymbolPickerOpen(false);
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
         {tab === "diseno" && (
-          <div className="margins-form">
-            <label>
-              Superior (cm)
-              <input
-                type="number"
-                step="0.1"
-                min="0.5"
-                max="10"
-                value={margins.top}
-                onChange={(e) => onMarginsChange({ top: Number(e.target.value) })}
-              />
-            </label>
-            <label>
-              Inferior (cm)
-              <input
-                type="number"
-                step="0.1"
-                min="0.5"
-                max="10"
-                value={margins.bottom}
-                onChange={(e) => onMarginsChange({ bottom: Number(e.target.value) })}
-              />
-            </label>
-            <label>
-              Izquierdo (cm)
-              <input
-                type="number"
-                step="0.1"
-                min="0.5"
-                max="10"
-                value={margins.left}
-                onChange={(e) => onMarginsChange({ left: Number(e.target.value) })}
-              />
-            </label>
-            <label>
-              Derecho (cm)
-              <input
-                type="number"
-                step="0.1"
-                min="0.5"
-                max="10"
-                value={margins.right}
-                onChange={(e) => onMarginsChange({ right: Number(e.target.value) })}
-              />
-            </label>
+          <div className="diseno-panel">
+            <div className="margins-form">
+              <label>
+                Superior (cm)
+                <input type="number" step="0.1" min="0.5" max="10" value={margins.top} onChange={(e) => onMarginsChange({ top: Number(e.target.value) })} />
+              </label>
+              <label>
+                Inferior (cm)
+                <input type="number" step="0.1" min="0.5" max="10" value={margins.bottom} onChange={(e) => onMarginsChange({ bottom: Number(e.target.value) })} />
+              </label>
+              <label>
+                Izquierdo (cm)
+                <input type="number" step="0.1" min="0.5" max="10" value={margins.left} onChange={(e) => onMarginsChange({ left: Number(e.target.value) })} />
+              </label>
+              <label>
+                Derecho (cm)
+                <input type="number" step="0.1" min="0.5" max="10" value={margins.right} onChange={(e) => onMarginsChange({ right: Number(e.target.value) })} />
+              </label>
+
+              <label>
+                Papel
+                <select value={paperSize} onChange={(e) => onPaperSizeChange(e.target.value as PaperSizeId)}>
+                  <option value="a4">A4</option>
+                  <option value="carta">Carta</option>
+                  <option value="legal">Legal</option>
+                </select>
+              </label>
+
+              <label>
+                Orientación
+                <select value={orientation} onChange={(e) => onOrientationChange(e.target.value as Orientation)}>
+                  <option value="portrait">Vertical</option>
+                  <option value="landscape">Horizontal</option>
+                </select>
+              </label>
+
+              <label>
+                Zoom
+                <select value={zoom} onChange={(e) => onZoomChange(Number(e.target.value))}>
+                  {ZOOM_LEVELS.map((z) => (
+                    <option key={z} value={z}>
+                      {z}%
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             <p className="ai-help">También puedes arrastrar los marcadores de la regla sobre la hoja.</p>
+
+            <div className="header-footer-form">
+              <label>
+                Encabezado
+                <input
+                  type="text"
+                  placeholder="Texto que aparece arriba de cada página"
+                  value={headerText}
+                  onChange={(e) => onHeaderTextChange(e.target.value)}
+                />
+              </label>
+              <label>
+                Pie de página
+                <input
+                  type="text"
+                  placeholder="Texto que aparece abajo de cada página"
+                  value={footerText}
+                  onChange={(e) => onFooterTextChange(e.target.value)}
+                />
+              </label>
+              <label className="ai-toggle">
+                <input type="checkbox" checked={showPageNumber} onChange={(e) => onShowPageNumberChange(e.target.checked)} />
+                Incluir número de página
+              </label>
+              <p className="ai-help">El encabezado y pie de página se aplican al exportar a .docx y .pdf.</p>
+            </div>
           </div>
         )}
 
@@ -418,6 +544,10 @@ export function Ribbon({
             </label>
             <ToolbarButton title="Ver panel de cambios" onClick={onOpenReview}>
               📋 Ver cambios
+            </ToolbarButton>
+            <div className="toolbar-divider" />
+            <ToolbarButton title="Panel de navegación / tabla de contenido" onClick={onOpenOutline}>
+              🧭 Esquema
             </ToolbarButton>
           </div>
         )}

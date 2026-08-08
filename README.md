@@ -24,6 +24,16 @@ Además, para acercarse a la experiencia de Word:
 - **Guías de fin de página**: líneas que muestran dónde caerá cada salto de página al exportar a PDF (el documento sigue siendo un único lienzo editable, no páginas físicas separadas).
 - **Comentarios**: selecciona texto, añade un comentario, resuélvelo cuando corresponda.
 - **Control de cambios ("Modo de revisión")**: lo que se escribe queda subrayado y lo que se borra queda tachado en vez de desaparecer, hasta aceptar o rechazar cada cambio (o todos a la vez). *Función en beta*: cubre los flujos comunes (escribir, seleccionar y borrar); casos poco frecuentes como pegar sobre texto ya marcado o deshacer/rehacer pueden comportarse de forma imperfecta. Al exportar a .docx/.pdf, los cambios pendientes se aplican automáticamente (inserciones se conservan, eliminaciones se quitan) para que el archivo final quede limpio.
+- **Autoguardado local**: el documento se guarda en el navegador mientras se escribe; si cierras la pestaña por accidente, al volver a abrir se ofrece recuperarlo.
+- **Tamaño de papel** (A4/Carta/Legal), **orientación** (vertical/horizontal) y **zoom** de la página.
+- **Encabezado, pie de página y número de página**, aplicados al exportar tanto a .docx como a .pdf (encabezado/pie reales, número de página automático).
+- **Galería de estilos rápidos** (Título 1/2/3, Cuerpo, Cita) de un clic.
+- **Panel de navegación**: lista de títulos del documento, clic para saltar a esa sección.
+- **Tabla de contenido automática**, generada desde los títulos (un botón la inserta o la actualiza).
+- **Insertar**: símbolos comunes, fecha y hora, línea horizontal.
+- **Estadísticas del documento** (palabras, caracteres, párrafos, páginas estimadas, tiempo de lectura) y **modo oscuro** de la interfaz (la hoja se mantiene blanca, como el papel).
+
+**Fuera de alcance** (proyectos grandes por sí solos, no incluidos): combinación de correspondencia, ecuaciones, notas al pie reales, protección con contraseña, edición colaborativa en tiempo real.
 
 ## Arquitectura
 

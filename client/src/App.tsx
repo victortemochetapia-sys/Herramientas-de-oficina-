@@ -21,6 +21,8 @@ import { StatusBar } from "./components/StatusBar";
 import { AiSidebar } from "./components/AiSidebar";
 import { CommentsPanel } from "./components/CommentsPanel";
 import { ReviewPanel } from "./components/ReviewPanel";
+import { OutlinePanel } from "./components/OutlinePanel";
+import { StatsDialog } from "./components/StatsDialog";
 import { Ruler } from "./components/Ruler";
 import { PageGuides } from "./components/PageGuides";
 import { FindReplacePanel } from "./components/FindReplacePanel";
@@ -29,9 +31,11 @@ import { CommentMark } from "./extensions/CommentMark";
 import { Indent } from "./extensions/Indent";
 import { TextCase } from "./extensions/TextCase";
 import { PageBreak } from "./extensions/PageBreak";
+import { TocBlock } from "./extensions/TocBlock";
 import { FindReplace, computeMatches, type FindMatch } from "./extensions/FindReplace";
 import { TrackChanges, TrackDeleteMark, TrackInsertMark, getTrackedChanges, type TrackedChangeSummary } from "./extensions/TrackChanges";
-import { exportDocx, exportPdf, fetchAiStatus, fetchAiSuggestion, importDocx, streamAiInstruction } from "./lib/api";
+import { getOutline, insertOrUpdateToc } from "./lib/outline";
+import { exportDocx, exportPdf, fetchAiStatus, fetchAiSuggestion, importDocx, streamAiInstruction, type ExportOptions } from "./lib/api";
 import { sanitizeHtmlForExport } from "./lib/sanitizeExport";
 import type { DocComment } from "./types";
 
@@ -39,10 +43,18 @@ import "./index.css";
 import "./editor.css";
 
 const SUGGESTION_DEBOUNCE_MS = 900;
+const AUTOSAVE_KEY = "herramientas-oficina-autosave-v1";
 
-export const PAGE_WIDTH_PX = 794; // A4 (21cm) a 96dpi
-export const PAGE_HEIGHT_PX = 1123; // A4 (29.7cm) a 96dpi
-export const PX_PER_CM = PAGE_WIDTH_PX / 21;
+export const PX_PER_CM = 37.7953; // 96dpi
+
+export type PaperSizeId = "a4" | "carta" | "legal";
+export const PAPER_SIZES: Record<PaperSizeId, { label: string; width: number; height: number }> = {
+  a4: { label: "A4", width: 21, height: 29.7 },
+  carta: { label: "Carta", width: 21.59, height: 27.94 },
+  legal: { label: "Legal", width: 21.59, height: 35.56 },
+};
+
+export type Orientation = "portrait" | "landscape";
 
 export interface Margins {
   top: number;
@@ -53,7 +65,7 @@ export interface Margins {
 
 const DEFAULT_MARGINS: Margins = { top: 2.5, right: 2.5, bottom: 2.5, left: 2.5 };
 
-type SidebarTab = "ai" | "comments" | "review";
+type SidebarTab = "ai" | "comments" | "review" | "outline";
 
 function App() {
   const [title, setTitle] = useState("Documento sin título");
@@ -76,9 +88,24 @@ function App() {
   const [replaceTerm, setReplaceTerm] = useState("");
   const [findMatches, setFindMatchesState] = useState<FindMatch[]>([]);
   const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+  const [paperSize, setPaperSize] = useState<PaperSizeId>("a4");
+  const [orientation, setOrientation] = useState<Orientation>("portrait");
+  const [zoom, setZoom] = useState(100);
+  const [headerText, setHeaderText] = useState("");
+  const [footerText, setFooterText] = useState("");
+  const [showPageNumber, setShowPageNumber] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [restoredBanner, setRestoredBanner] = useState(false);
 
   const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionRequestId = useRef(0);
+
+  const paper = PAPER_SIZES[paperSize];
+  const pageWidthCm = orientation === "portrait" ? paper.width : paper.height;
+  const pageHeightCm = orientation === "portrait" ? paper.height : paper.width;
+  const pageWidthPx = pageWidthCm * PX_PER_CM;
+  const pageHeightPx = pageHeightCm * PX_PER_CM;
 
   const editor = useEditor({
     extensions: [
@@ -107,6 +134,7 @@ function App() {
       TrackChanges,
       FindReplace,
       PageBreak,
+      TocBlock,
     ],
     content: "<p></p>",
     autofocus: true,
@@ -152,6 +180,33 @@ function App() {
     return () => {
       editor.off("update", update);
     };
+  }, [editor]);
+
+  // Panel de navegación: lista de títulos actualizada con el documento.
+  const [outline, setOutline] = useState<ReturnType<typeof getOutline>>([]);
+  useEffect(() => {
+    if (!editor) return;
+    const update = () => setOutline(getOutline(editor));
+    update();
+    editor.on("update", update);
+    return () => {
+      editor.off("update", update);
+    };
+  }, [editor]);
+
+  const openOutline = useCallback(() => setSidebarTab("outline"), []);
+
+  const handleJumpToHeading = useCallback(
+    (pos: number) => {
+      editor?.chain().focus().setTextSelection(pos).scrollIntoView().run();
+    },
+    [editor],
+  );
+
+  const handleInsertToc = useCallback(() => {
+    if (!editor) return;
+    const ok = insertOrUpdateToc(editor);
+    if (!ok) alert("Agrega títulos (Título 1/2/3) a tu documento para generar la tabla de contenido.");
   }, [editor]);
 
   // Buscar y reemplazar: recalcula las coincidencias cuando cambia el
@@ -266,12 +321,77 @@ function App() {
     };
   }, [editor, suggestionsEnabled, aiEnabled, suggestionStyle]);
 
+  // Autoguardado local: guarda el documento en el navegador para no perder
+  // el trabajo si se cierra la pestaña, y lo restaura al volver a abrir.
+  const restoredOnce = useRef(false);
+  useEffect(() => {
+    if (!editor || restoredOnce.current) return;
+    restoredOnce.current = true;
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return;
+      const snap = JSON.parse(raw);
+      if (!snap.html) return;
+      editor.commands.setContent(snap.html);
+      if (snap.title) setTitle(snap.title);
+      if (snap.margins) setMargins(snap.margins);
+      if (Array.isArray(snap.comments)) setComments(snap.comments);
+      if (snap.paperSize) setPaperSize(snap.paperSize);
+      if (snap.orientation) setOrientation(snap.orientation);
+      if (typeof snap.headerText === "string") setHeaderText(snap.headerText);
+      if (typeof snap.footerText === "string") setFooterText(snap.footerText);
+      if (typeof snap.showPageNumber === "boolean") setShowPageNumber(snap.showPageNumber);
+      setRestoredBanner(true);
+    } catch {
+      // Autoguardado corrupto o inaccesible: se ignora silenciosamente.
+    }
+  }, [editor]);
+
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleAutosave = useCallback(() => {
+    if (!editor) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      try {
+        const snapshot = {
+          title,
+          html: editor.getHTML(),
+          margins,
+          comments,
+          paperSize,
+          orientation,
+          headerText,
+          footerText,
+          showPageNumber,
+          savedAt: Date.now(),
+        };
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot));
+      } catch {
+        // Almacenamiento local lleno o no disponible: se ignora.
+      }
+    }, 1000);
+  }, [editor, title, margins, comments, paperSize, orientation, headerText, footerText, showPageNumber]);
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.on("update", scheduleAutosave);
+    return () => {
+      editor.off("update", scheduleAutosave);
+    };
+  }, [editor, scheduleAutosave]);
+
+  useEffect(() => {
+    scheduleAutosave();
+  }, [scheduleAutosave]);
+
   const handleNew = useCallback(() => {
     if (!editor) return;
     if (!window.confirm("¿Crear un nuevo documento? Se perderá el contenido no guardado.")) return;
     editor.commands.setContent("<p></p>");
     setTitle("Documento sin título");
     setComments([]);
+    localStorage.removeItem(AUTOSAVE_KEY);
+    setRestoredBanner(false);
   }, [editor]);
 
   const handleOpenFile = useCallback(
@@ -302,29 +422,41 @@ function App() {
     [editor],
   );
 
+  const exportOptions = useCallback(
+    (): ExportOptions => ({
+      margins,
+      paperSize,
+      orientation,
+      headerText,
+      footerText,
+      showPageNumber,
+    }),
+    [margins, paperSize, orientation, headerText, footerText, showPageNumber],
+  );
+
   const handleSaveDocx = useCallback(async () => {
     if (!editor) return;
     setBusy(true);
     try {
-      await exportDocx(sanitizeHtmlForExport(editor.getHTML()), title);
+      await exportDocx(sanitizeHtmlForExport(editor.getHTML()), title, exportOptions());
     } catch (err) {
       alert(err instanceof Error ? err.message : "No se pudo guardar el .docx.");
     } finally {
       setBusy(false);
     }
-  }, [editor, title]);
+  }, [editor, title, exportOptions]);
 
   const handleSavePdf = useCallback(async () => {
     if (!editor) return;
     setBusy(true);
     try {
-      await exportPdf(sanitizeHtmlForExport(editor.getHTML()), title, margins);
+      await exportPdf(sanitizeHtmlForExport(editor.getHTML()), title, exportOptions());
     } catch (err) {
       alert(err instanceof Error ? err.message : "No se pudo guardar el .pdf.");
     } finally {
       setBusy(false);
     }
-  }, [editor, title, margins]);
+  }, [editor, title, exportOptions]);
 
   const handleSaveTxt = useCallback(() => {
     if (!editor) return;
@@ -421,10 +553,23 @@ function App() {
   const openComments = useCallback(() => setSidebarTab("comments"), []);
   const openReview = useCallback(() => setSidebarTab("review"), []);
 
-  const pageContentHeightPx = PAGE_HEIGHT_PX - (margins.top + margins.bottom) * PX_PER_CM;
+  const pageContentHeightPx = pageHeightPx - (margins.top + margins.bottom) * PX_PER_CM;
+
+  const text = editor?.getText() ?? "";
+  const paragraphCount = editor ? editor.state.doc.content.childCount : 0;
+  const charactersNoSpaces = text.replace(/\s/g, "").length;
+  const estimatedPages = Math.max(1, Math.ceil(counts.characters / 1800));
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${darkMode ? " theme-dark" : ""}`}>
+      {restoredBanner && (
+        <div className="restored-banner">
+          <span>Recuperamos tu último documento (autoguardado).</span>
+          <button type="button" onClick={() => setRestoredBanner(false)}>
+            ✕
+          </button>
+        </div>
+      )}
       <MenuBar
         title={title}
         onTitleChange={setTitle}
@@ -434,6 +579,8 @@ function App() {
         onSavePdf={handleSavePdf}
         onSaveTxt={handleSaveTxt}
         busy={busy}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode((v) => !v)}
       />
       <Ribbon
         editor={editor}
@@ -443,8 +590,21 @@ function App() {
         onToggleTrackChanges={setTrackChangesEnabled}
         onOpenComments={openComments}
         onOpenReview={openReview}
+        onOpenOutline={openOutline}
         canAddComment={hasSelection}
         onOpenFind={() => setFindOpen(true)}
+        paperSize={paperSize}
+        onPaperSizeChange={setPaperSize}
+        orientation={orientation}
+        onOrientationChange={setOrientation}
+        zoom={zoom}
+        onZoomChange={setZoom}
+        headerText={headerText}
+        onHeaderTextChange={setHeaderText}
+        footerText={footerText}
+        onFooterTextChange={setFooterText}
+        showPageNumber={showPageNumber}
+        onShowPageNumberChange={setShowPageNumber}
       />
 
       <div className="workspace">
@@ -464,9 +624,10 @@ function App() {
               onClose={closeFind}
             />
           )}
-          <div className="page-column">
+          <div className="page-column" style={{ zoom: `${zoom}%` }}>
             <Ruler
-              pageWidthPx={PAGE_WIDTH_PX}
+              pageWidthPx={pageWidthPx}
+              pageWidthCm={pageWidthCm}
               marginLeftCm={margins.left}
               marginRightCm={margins.right}
               onChange={(left, right) => handleMarginsChange({ left, right })}
@@ -474,14 +635,15 @@ function App() {
             <div
               className="page"
               style={{
-                width: PAGE_WIDTH_PX,
+                width: pageWidthPx,
+                minHeight: pageHeightPx,
                 paddingTop: margins.top * PX_PER_CM,
                 paddingRight: margins.right * PX_PER_CM,
                 paddingBottom: margins.bottom * PX_PER_CM,
                 paddingLeft: margins.left * PX_PER_CM,
               }}
             >
-              <PageGuides editor={editor} pageContentHeightPx={pageContentHeightPx} marginTopPx={margins.top * PX_PER_CM} />
+              <PageGuides editor={editor} pageContentHeightPx={pageContentHeightPx} marginTopPx={margins.top * PX_PER_CM} zoom={zoom} />
               <EditorContent editor={editor} />
             </div>
           </div>
@@ -497,6 +659,9 @@ function App() {
             </button>
             <button className={sidebarTab === "review" ? "active" : ""} onClick={() => setSidebarTab("review")}>
               Revisión{trackedChanges.length > 0 ? ` (${trackedChanges.length})` : ""}
+            </button>
+            <button className={sidebarTab === "outline" ? "active" : ""} onClick={() => setSidebarTab("outline")}>
+              Esquema
             </button>
           </div>
 
@@ -537,10 +702,23 @@ function App() {
               onReject={(id) => editor?.chain().focus().rejectChange(id).run()}
             />
           )}
+
+          {sidebarTab === "outline" && <OutlinePanel headings={outline} onJump={handleJumpToHeading} onInsertToc={handleInsertToc} />}
         </aside>
       </div>
 
-      <StatusBar words={counts.words} characters={counts.characters} aiEnabled={aiEnabled} />
+      <StatusBar words={counts.words} characters={counts.characters} aiEnabled={aiEnabled} onOpenStats={() => setStatsOpen(true)} />
+
+      {statsOpen && (
+        <StatsDialog
+          words={counts.words}
+          characters={counts.characters}
+          charactersNoSpaces={charactersNoSpaces}
+          paragraphs={paragraphCount}
+          estimatedPages={estimatedPages}
+          onClose={() => setStatsOpen(false)}
+        />
+      )}
     </div>
   );
 }

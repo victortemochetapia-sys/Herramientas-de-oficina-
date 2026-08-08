@@ -9,9 +9,22 @@ interface MenuBarProps {
   onSavePdf: () => void;
   onSaveTxt: () => void;
   busy: boolean;
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
-export function MenuBar({ title, onTitleChange, onNew, onOpenFile, onSaveDocx, onSavePdf, onSaveTxt, busy }: MenuBarProps) {
+export function MenuBar({
+  title,
+  onTitleChange,
+  onNew,
+  onOpenFile,
+  onSaveDocx,
+  onSavePdf,
+  onSaveTxt,
+  busy,
+  darkMode,
+  onToggleDarkMode,
+}: MenuBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +76,10 @@ export function MenuBar({ title, onTitleChange, onNew, onOpenFile, onSaveDocx, o
       />
 
       {busy && <span className="menu-busy">Procesando…</span>}
+
+      <button type="button" className="dark-mode-btn" title={darkMode ? "Modo claro" : "Modo oscuro"} onClick={onToggleDarkMode}>
+        {darkMode ? "☀️" : "🌙"}
+      </button>
     </div>
   );
 }

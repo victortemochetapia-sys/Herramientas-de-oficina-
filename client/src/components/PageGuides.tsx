@@ -5,6 +5,7 @@ interface PageGuidesProps {
   editor: Editor | null;
   pageContentHeightPx: number;
   marginTopPx: number;
+  zoom?: number;
 }
 
 /**
@@ -12,7 +13,7 @@ interface PageGuidesProps {
  * (aproximación visual: el contenido sigue siendo un único flujo editable,
  * no páginas físicamente separadas).
  */
-export function PageGuides({ editor, pageContentHeightPx, marginTopPx }: PageGuidesProps) {
+export function PageGuides({ editor, pageContentHeightPx, marginTopPx, zoom = 100 }: PageGuidesProps) {
   const [guides, setGuides] = useState<number[]>([]);
 
   useEffect(() => {
@@ -20,7 +21,9 @@ export function PageGuides({ editor, pageContentHeightPx, marginTopPx }: PageGui
     const dom = editor.view.dom as HTMLElement;
 
     const recompute = () => {
-      const height = dom.scrollHeight;
+      // `scrollHeight` viene afectado por el zoom CSS de la página; se
+      // normaliza para comparar contra la altura de página sin escalar.
+      const height = dom.scrollHeight / (zoom / 100);
       const count = Math.max(0, Math.floor(height / pageContentHeightPx));
       const next: number[] = [];
       for (let i = 1; i <= count; i++) next.push(i * pageContentHeightPx);
@@ -36,7 +39,7 @@ export function PageGuides({ editor, pageContentHeightPx, marginTopPx }: PageGui
       observer.disconnect();
       editor.off("update", recompute);
     };
-  }, [editor, pageContentHeightPx]);
+  }, [editor, pageContentHeightPx, zoom]);
 
   return (
     <>
