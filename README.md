@@ -147,7 +147,8 @@ fidelidad de formato (tablas, imágenes, estilos).
 
 ## Notas de despliegue
 
-- El servidor necesita un Chromium accesible para Playwright (para exportar
-  a PDF). En entornos sin navegador preinstalado, ejecuta
-  `npx playwright install chromium` tras `npm install`.
+- El servidor necesita un Chromium accesible para Playwright (lo usa para
+  exportar a PDF con paginación real). `npm run setup` ya lo descarga
+  automáticamente (`npm run install:browser`); si falla o lo necesitas
+  aparte, ejecuta `npx playwright install chromium` dentro de `server/`.
 - Nunca subas tu `.env` con la clave de Anthropic al repositorio.
